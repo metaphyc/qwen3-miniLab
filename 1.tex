@@ -37,7 +37,7 @@
         text=white,
         font=\sffamily\bfseries\small,
         align=center,
-        drop shadow={shadow xshift=0.10cm, shadow yshift=-0.10cm, fill=black!70, opacity=0.20}
+        drop shadow={shadow xshift=0.15cm, shadow yshift=-0.15cm, fill=black!70, opacity=0.35}
     },
     % 2. Transformer 顶层 Block
     blocktop/.style={
@@ -87,38 +87,32 @@
     
     % Input Token
     \node[databox, fill=tokenbg] (token) {
-        Input Token \\[1pt]
-        {\scriptsize x = [ "Language", "Model" ]}
+        Input Token 
     };
     
     % Embedding
     \node[box, fill=embedbg, below=of token] (embed) {
-        Embedding \\[1pt]
-        {\scriptsize $\text{Hidden Size } d_{\text{model}} = 1024$}
+        Embedding 
     };
     
     % N x Transformer Block
     \node[blocktop, fill=blockbg, below=of embed] (block) {
-        N $\times$ Transformer Block \\[1pt]
-        {\scriptsize Masked MHA + SwiGLU FFN}
+        N $\times$ Transformer Block 
     };
     
     % Final RMSNorm
     \node[box, fill=normbg, below=of block] (norm) {
-        Final RMSNorm \\[1pt]
-        {\scriptsize Layer Normalization}
+        Final RMSNorm
     };
     
     % LM Head
     \node[box, fill=headbg, below=of norm] (head) {
-        LM Head \\[1pt]
-        {\scriptsize Linear Unembedding Projection}
+        LM Head 
     };
     
     % Output Logits (通过 below=of head 精准将底部距离拉紧)
     \node[databox, fill=logitbg, below=of head] (logits) {
-        Output Logits \\[1pt]
-        {\scriptsize $P(\text{next\_token}) \in \mathbb{R}^{\text{Vocab Size}}$}
+        Output Logits 
     };
 
     % --- 2. Transformer Block 背景堆叠层 ---
