@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.code-tab.com",
+    "ANTHROPIC_AUTH_TOKEN": "sk-0715c487c84433e757a69425ecb9926b0ed324c8f8c6db0b45fbb170478e7132",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "CLAUDE_CODE_ATTRIBUTION_HEADER": "0"
+  }
+}
