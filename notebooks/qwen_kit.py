@@ -7,7 +7,7 @@ notebook 正文只用这几个名字：
     params(model)                               把全模型权重整理成可查的目录
     look(x)                                     看任何东西，按类型自动选显示方式
     check(mine, ref, name)                      比对两个张量，判据 max|差| / max|ref| < 1e-5
-    record(name, ok, rel, max_abs)              登记一个不是逐元素比对的结论
+    record(name, ok, max_abs, rel)              登记一个不是逐元素比对的结论
     summary()                                   汇总本次记录到的全部 check
 
 用之前先调一次 setup(model, tokenizer)：维度常量、字段表都从 model.config 现推，
@@ -660,8 +660,10 @@ def check(mine, ref, name=None, quiet=False):
     return ok
 
 
-def record(name, ok, rel=None, max_abs=None):
+def record(name, ok, max_abs=None, rel=None):
     """登记一个不是逐元素比对的结论（例如"28 层全部通过"、"预测一致"）。
+
+    形参顺序跟 CHECKS 元组和汇总表的列序一致（max_abs 在前），按位置传也不会写反。
 
     没有实测到的那一栏传 None，汇总里打印成 `-`。不要拿 0.0 顶替：
     0.000e+00 会被读成"测过，差异为零"，而对象相等、预测一致这类结论根本没测差异。
