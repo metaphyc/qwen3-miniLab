@@ -73,12 +73,11 @@ _TABLE_CSS = """<style>
 .ktab .ok{color:#2e9e4f;font-weight:600}
 .ktab .no{color:#d63b3b;font-weight:600}
 .ktab .dim{opacity:.6}
-/* diff 行：底色用低透明度，深色浅色主题下都能看。同色不同浓度区分两类差异。 */
+/* diff 行：底色用低透明度，深色浅色主题下都能看。 */
 .ktab tr.same td{opacity:.55}
-.ktab tr.chg td{background:rgba(224,158,0,.14)}
 .ktab tr.gone td{background:rgba(214,59,59,.13)}
 .ktab tr.new td{background:rgba(46,158,79,.11)}
-.ktab tr.chg td:first-child,.ktab tr.gone td:first-child,.ktab tr.new td:first-child{font-weight:700}
+.ktab tr.gone td:first-child,.ktab tr.new td:first-child{font-weight:700}
 </style>"""
 
 
@@ -150,49 +149,54 @@ def _repr_safe(value, width=64):
 
 
 def diff_config(raw_config, config, notes=None, width=64):
-    """两份配置**完整**并排打印，像 git diff 一样只把不同的行高亮出来。
+    """两份配置像 git diff 一样列出，只用 + 和 - 标记不同的行。
 
     走 getattr 而不是 config.to_dict()：属性访问是写代码时真正碰到的那一面，
     改名和"收进子字典"这两类差异只有属性访问才暴露得出来。
 
     标记列（照 git diff 的读法）：
         空   两边一致，整行调暗
-        ~    两边都有，值不一样
-        -    json 里有，config 对象上取不到
-        +    json 里没有，config 对象上有（PretrainedConfig 的默认值）
+        -    json 有，config 没有 或 值不一样时 json 这边的值
+        +    config 有，json 没有 或 值不一样时 config 这边的值
 
-    枚举 config 对象有哪些键要靠 to_dict()，但取值一律走 getattr —— 前者回答
-    "存在什么"，后者回答"写代码时拿到什么"，两件事不冲突。
+    "config 有哪些键"以 to_dict() 为准，取值一律走 getattr。两者的差集不是巧合：
+    像 torch_dtype 这种已废弃的别名，getattr 拿得到（转发到 dtype，同一个对象），
+    但不在 to_dict() 里。这种键只出 - 行，不出 + 行 —— 它能用但不该用，
+    列成 + 等于推荐读者去用一个废弃接口。真正该用的新名字由它自己那行 + 承接。
 
-    读某些已废弃的键（如 torch_dtype）会打 deprecated 警告。这里压掉是为了
-    不让 stderr 插进表格中间；改名这件事本身由 notes 记进"说明"列，不会丢。
+    读这类废弃键会打 deprecated 警告。这里压掉是为了不让 stderr 插进表格中间；
+    改名这件事本身由 notes 记进"说明"列，不会丢。
     """
     notes = notes or {}
+    live = set(config.to_dict())          # config 对象正式承认的键
     verbosity = transformers.logging.get_verbosity()
     transformers.logging.set_verbosity_error()
     try:
         rows = []
         for key, raw_value in raw_config.items():
             got = getattr(config, key, _MISSING)
-            if got is _MISSING:
-                mark, right = '-', '<取不到>'
+            if got is _MISSING or key not in live:
+                # 取不到，或只是个废弃别名：都只记 json 这边有过这个键。
+                rows.append(('-', key, _clip(repr(raw_value), width), notes.get(key, '')))
+            elif got != raw_value:
+                # 值不同就拆成相邻两行，-  是 json 那边的值，+  是 config 对象那边的值。
+                # 说明只挂在 - 行：一对里说的是同一件事，两行都写等于重复一遍。
+                rows.append(('-', key, _clip(repr(raw_value), width), notes.get(key, '')))
+                rows.append(('+', key, _repr_safe(got, width), ''))
             else:
-                mark = '' if got == raw_value else '~'
-                right = _repr_safe(got, width)
-            rows.append((mark, key, _clip(repr(raw_value), width), right,
-                         notes.get(key, '')))
-        for key in sorted(set(config.to_dict()) - set(raw_config)):
-            rows.append(('+', key, '—', _repr_safe(getattr(config, key, None), width),
+                rows.append(('', key, _clip(repr(raw_value), width), notes.get(key, '')))
+        for key in sorted(live - set(raw_config)):
+            rows.append(('+', key, _repr_safe(getattr(config, key, None), width),
                          notes.get(key, '')))
     finally:
         transformers.logging.set_verbosity(verbosity)
 
-    _CLS = {'': 'same', '~': 'chg', '-': 'gone', '+': 'new'}
+    _CLS = {'': 'same', '-': 'gone', '+': 'new'}
     n_diff = sum(1 for r in rows if r[0])
-    show(rows, header=['', 'key', 'config.json', 'getattr(config, key)', '说明'],
+    show(rows, header=['', 'key', 'value', '说明'],
          align='c',
-         title=f'两份配置的键全部列出，共 {len(rows)} 行，不一致的 {n_diff} 行\n'
-               f'~ 值不同    - json 有而 config 对象取不到    + config 对象独有',
+         title=f'配置 diff，共 {len(rows)} 行，不一致的 {n_diff} 行\n'
+               f'-  json 有    +  config 对象有',
          row_class=lambda r: _CLS[r[0]])
     return rows
 
