@@ -246,7 +246,7 @@ def show_evidence():
 # 报 "先调 setup" 而不是一句光秃秃的 NameError。
 TOKENIZER = None
 N_LAYERS = HIDDEN = N_HEADS = N_KV_HEADS = HEAD_DIM = INTERMEDIATE = VOCAB = None
-LAYER_FIELDS = _PARAM_NAMES = _NO_WEIGHT = None
+LAYER_FIELDS = _PARAM_NAMES = None
 
 
 def _require_setup():
@@ -261,7 +261,7 @@ def setup(model, tokenizer):
     七个维度全部从 model.config 现推，不写死数字：换个规格的 Qwen3 也能直接用。
     """
     global TOKENIZER, N_LAYERS, HIDDEN, N_HEADS, N_KV_HEADS, HEAD_DIM
-    global INTERMEDIATE, VOCAB, LAYER_FIELDS, _PARAM_NAMES, _NO_WEIGHT
+    global INTERMEDIATE, VOCAB, LAYER_FIELDS, _PARAM_NAMES
     config = model.config
     TOKENIZER = tokenizer
     N_LAYERS = config.num_hidden_layers
@@ -293,10 +293,8 @@ def setup(model, tokenizer):
         ('out',          '这一层的输出，也是下一层的 inp'),
     ]
 
-    # qwen.L[i] 有 17 个字段，W.L[i] 只有 11 个。差集就是「纯运算的产物，没有权重」
-    # 那几个，算出来而不是手抄，这样两张表将来改了也不会对不上。
+    # 报错时要列的有效字段名，从 PARAM_FIELDS 算出来而不是手抄。
     _PARAM_NAMES = [field for field, _, _ in PARAM_FIELDS]
-    _NO_WEIGHT = [field for field, _ in LAYER_FIELDS if field not in _PARAM_NAMES]
 
 
 
@@ -507,8 +505,6 @@ class LayerParams:
             title=f'Layer {i} 的 {len(PARAM_FIELDS)} 个权重'
                   f'（裸路径前缀 model.model.layers[{i}].）\n'
                   f'矩阵按 [out, in] 转置存放，交给 my_linear 就不用管 .T。\n'
-                  f'qwen.L[{i}] 里另有 {len(_NO_WEIGHT)} 个字段是纯中间状态、没有权重：'
-                  + '  '.join(_NO_WEIGHT) + f'\n'
                   f'用法： W.L[{i}].q_proj   W.find("norm")')
 
 
@@ -574,7 +570,7 @@ class Params:
                   f'dtype={sample.dtype}  device={sample.device}\n'
                   f'W.L[0] … W.L[{N_LAYERS - 1}] 每层 {len(PARAM_FIELDS)} 个权重，'
                   f'敲 W.L[0] 看清单；忘了字段名用 W.find("norm")\n'
-                  f'全模型 bias 数量 = {n_bias}（attention_bias=false），找 .bias 会报错。\n'
+                  f'全模型 bias 数量 = {n_bias}（attention_bias=false）。\n'
                   f'取到的是官方权重本身，不是副本 —— 别原地改。')
 
     def find(self, pattern):
@@ -590,13 +586,8 @@ class Params:
             show([(n, str(s), p) for n, s, p in hits],
                  header=['字段', '形状', '裸路径'],
                  title=f'匹配 {pattern!r} 的 {len(hits)} 个权重字段')
-        # 搜不到权重时，很可能要找的是中间状态。指过去，而不是只说「没有」。
-        states = [field for field, _ in LAYER_FIELDS if pattern in field.lower()]
-        if states:
-            print(f'\n{pattern!r} 还匹配 {len(states)} 个中间状态（在 qwen.L[i] 里，不是权重）：')
-            print('  ' + '  '.join(f'qwen.L[i].{s}' for s in states))
-        if not hits and not states:
-            print(f'没有匹配 {pattern!r} 的字段。敲 W 看权重目录，敲 qwen.L[0] 看中间状态。')
+        else:
+            print(f'没有匹配 {pattern!r} 的权重。敲 W 看全部权重。')
 
 
 
