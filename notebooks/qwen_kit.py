@@ -309,6 +309,13 @@ class LayerView:
     def __init__(self, index):
         self.index = index
 
+    def __getattr__(self, name):
+        # 取不到就把有效字段列出来，和 W.L[i] 一个待遇。
+        if name.startswith('_'):
+            raise AttributeError(name)
+        raise AttributeError(f'qwen.L[{self.__dict__.get("index", "?")}] 没有 {name!r}。'
+                             '有效字段：' + ' '.join(f for f, _ in LAYER_FIELDS))
+
     def __repr__(self):
         return f'<LayerView layer={self.index}，{len(LAYER_FIELDS)} 个字段>'
 
@@ -480,22 +487,12 @@ class LayerParams:
         assert not missing, f'Layer {index} 少了权重 {missing}，模型结构与本实验的假设不同'
 
     def __getattr__(self, name):
-        # 只有正常属性找不到时才会走到这里。把几种常见手滑变成会自我解释的报错，
-        # 而不是一句光秃秃的 AttributeError。
+        # 取不到就把有效字段列出来，不猜用户想干什么。
         if name.startswith('_'):
             raise AttributeError(name)
         index = self.__dict__.get('_index', '?')
-        if name in ('bias', 'biases'):
-            raise AttributeError(f'本模型没有任何 bias（config 里 attention_bias=false），'
-                                 f'W.L[{index}] 只有 weight')
-        if name == 'weight':
-            raise AttributeError(f'W.L[{index}].字段 取到的已经是权重张量本身，不必再 .weight，'
-                                 f'直接写 W.L[{index}].q_proj')
-        if name in _NO_WEIGHT:
-            raise AttributeError(f'{name!r} 是中间状态、不是权重，在 qwen.L[{index}].{name} 里；'
-                                 f'W.L[{index}] 只有 {len(_PARAM_NAMES)} 个权重字段')
-        raise AttributeError(f'W.L[{index}] 没有字段 {name!r}。'
-                             f'敲 W.L[{index}] 看清单，或 W.find({name!r}) 模糊搜')
+        raise AttributeError(f'W.L[{index}] 没有 {name!r}。有效字段：'
+                             + ' '.join(_PARAM_NAMES))
 
     def __repr__(self):
         return f'<LayerParams layer={self._index}，{len(PARAM_FIELDS)} 个权重>'
@@ -529,14 +526,9 @@ class LayerList:
         return iter(self._items)
 
     def __getitem__(self, index):
-        if not isinstance(index, int):
-            raise TypeError(f'层号要写整数，收到 {index!r}。合法范围 0..{len(self) - 1}')
-        if index < 0:
-            # 负下标在这里没有好处，只会把 off-by-one 悄悄兜住。最后一层请写明层号。
-            raise IndexError(f'不接受负数层号 {index}。最后一层是 W.L[{len(self) - 1}]')
-        if index >= len(self):
-            raise IndexError(f'层号 {index} 越界。本模型 num_hidden_layers={len(self)}，'
-                             f'合法范围 0..{len(self) - 1}')
+        # 负下标不接受：它只会把 off-by-one 悄悄兜住，最后一层请写明层号。
+        if not isinstance(index, int) or not 0 <= index < len(self):
+            raise IndexError(f'层号 {index!r} 无效。有效层号：0..{len(self) - 1}')
         return self._items[index]
 
     def __repr__(self):
