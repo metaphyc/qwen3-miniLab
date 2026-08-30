@@ -3,6 +3,7 @@
 notebook 正文只用这几个名字：
 
     show(rows, header=, title=, fmt=, align=)   出一张 HTML 表格
+    diff_config(raw_config, config, notes=)     列出 config.json 与 config 对象不一致的键
     observe(model, input_ids)                   跑一次官方 forward，记下全部中间状态
     params(model)                               把全模型权重整理成可查的目录
     look(x)                                     看任何东西，按类型自动选显示方式
@@ -21,6 +22,7 @@ import inspect
 from pathlib import Path
 
 import torch
+import transformers
 from IPython.display import HTML, display
 from transformers.models.qwen3 import modeling_qwen3 as Q3
 
@@ -56,8 +58,6 @@ def show_path(path: Path) -> str:
 
 
 # ── 表格 ──────────────────────────────────────────────────────────────
-
-import html as _html
 
 _TABLE_CSS = """<style>
 .ktab{border-collapse:collapse;margin:.35em 0;
@@ -118,6 +118,39 @@ def show(rows, header=None, title=None, fmt='{:.3e}', align=None):
     """把 rows 显示成表格。列宽由浏览器算，中文占多宽都不影响对齐。"""
     display(HTML(table_html(rows, header, title, fmt, align)))
 
+
+# ── config.json 与 config 对象 diff ───────────────────────────────────
+
+_MISSING = object()
+
+
+def diff_config(raw_config, config, notes=None):
+    """逐个拿 raw_config 的顶层键去 config 对象上取属性，只显示不一致的。
+
+    走 getattr 而不是 config.to_dict()：属性访问是写代码时真正碰到的那一面，
+    改名和"收进子字典"这两类差异只有属性访问才暴露得出来。
+
+    读某些已废弃的键（如 torch_dtype）会打 deprecated 警告。这里压掉是为了
+    不让 stderr 插进表格中间；改名这件事本身由 notes 记进"说明"列，不会丢。
+    """
+    notes = notes or {}
+    verbosity = transformers.logging.get_verbosity()
+    transformers.logging.set_verbosity_error()
+    try:
+        rows = []
+        for key, raw_value in raw_config.items():
+            got = getattr(config, key, _MISSING)
+            if got is not _MISSING and got == raw_value:
+                continue
+            rows.append((key, repr(raw_value),
+                         '<AttributeError>' if got is _MISSING else repr(got),
+                         notes.get(key, '')))
+    finally:
+        transformers.logging.set_verbosity(verbosity)
+
+    show(rows, header=['key', 'config.json', 'getattr(config, key)', '说明'],
+         title=f'{len(raw_config)} 个顶层键，不一致的 {len(rows)} 个')
+    return rows
 
 
 # ── 证据链 ────────────────────────────────────────────────────────────
