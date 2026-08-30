@@ -73,6 +73,12 @@ _TABLE_CSS = """<style>
 .ktab .ok{color:#2e9e4f;font-weight:600}
 .ktab .no{color:#d63b3b;font-weight:600}
 .ktab .dim{opacity:.6}
+/* diff 行：底色用低透明度，深色浅色主题下都能看。同色不同浓度区分两类差异。 */
+.ktab tr.same td{opacity:.55}
+.ktab tr.chg td{background:rgba(224,158,0,.14)}
+.ktab tr.gone td{background:rgba(214,59,59,.13)}
+.ktab tr.new td{background:rgba(46,158,79,.11)}
+.ktab tr.chg td:first-child,.ktab tr.gone td:first-child,.ktab tr.new td:first-child{font-weight:700}
 </style>"""
 
 
@@ -96,8 +102,12 @@ def _cell(value, fmt, force=None):
     return f'<td{css}>{text}</td>'
 
 
-def table_html(rows, header=None, title=None, fmt='{:.3e}', align=None):
-    """拼一张 HTML 表并返回字符串。align 传 'llrc' 之类逐列覆盖默认对齐。"""
+def table_html(rows, header=None, title=None, fmt='{:.3e}', align=None,
+               row_class=None):
+    """拼一张 HTML 表并返回字符串。align 传 'llrc' 之类逐列覆盖默认对齐。
+
+    row_class 传一个 row -> str|None 的函数，给整行挂 class（diff 高亮用）。
+    """
     out = [_TABLE_CSS, '<table class="ktab">']
     if title:
         out.append(f'<caption>{_html.escape(title)}</caption>')
@@ -107,16 +117,18 @@ def table_html(rows, header=None, title=None, fmt='{:.3e}', align=None):
                    + '</tr></thead>')
     out.append('<tbody>')
     for row in rows:
-        out.append('<tr>' + ''.join(
+        cls = row_class(row) if row_class else None
+        out.append(f'<tr class="{cls}">' if cls else '<tr>')
+        out.append(''.join(
             _cell(value, fmt, align[n] if align and n < len(align) else None)
             for n, value in enumerate(row)) + '</tr>')
     out.append('</tbody></table>')
     return ''.join(out)
 
 
-def show(rows, header=None, title=None, fmt='{:.3e}', align=None):
+def show(rows, header=None, title=None, fmt='{:.3e}', align=None, row_class=None):
     """把 rows 显示成表格。列宽由浏览器算，中文占多宽都不影响对齐。"""
-    display(HTML(table_html(rows, header, title, fmt, align)))
+    display(HTML(table_html(rows, header, title, fmt, align, row_class)))
 
 
 # ── config.json 与 config 对象 diff ───────────────────────────────────
@@ -124,11 +136,33 @@ def show(rows, header=None, title=None, fmt='{:.3e}', align=None):
 _MISSING = object()
 
 
-def diff_config(raw_config, config, notes=None):
-    """逐个拿 raw_config 的顶层键去 config 对象上取属性，只显示不一致的。
+def _clip(text, width=64):
+    """太长的 repr 截断。整行 28 个 'full_attention' 会把表撑到没法读。"""
+    return text if len(text) <= width else text[:width - 1] + '…'
+
+
+def _repr_safe(value, width=64):
+    """repr 一个值，截断，且含绝对路径的改为项目相对路径。"""
+    s = repr(value)
+    if str(PROJECT_ROOT) in s:
+        s = s.replace(str(PROJECT_ROOT), show_path(PROJECT_ROOT))
+    return _clip(s, width)
+
+
+def diff_config(raw_config, config, notes=None, width=64):
+    """两份配置**完整**并排打印，像 git diff 一样只把不同的行高亮出来。
 
     走 getattr 而不是 config.to_dict()：属性访问是写代码时真正碰到的那一面，
     改名和"收进子字典"这两类差异只有属性访问才暴露得出来。
+
+    标记列（照 git diff 的读法）：
+        空   两边一致，整行调暗
+        ~    两边都有，值不一样
+        -    json 里有，config 对象上取不到
+        +    json 里没有，config 对象上有（PretrainedConfig 的默认值）
+
+    枚举 config 对象有哪些键要靠 to_dict()，但取值一律走 getattr —— 前者回答
+    "存在什么"，后者回答"写代码时拿到什么"，两件事不冲突。
 
     读某些已废弃的键（如 torch_dtype）会打 deprecated 警告。这里压掉是为了
     不让 stderr 插进表格中间；改名这件事本身由 notes 记进"说明"列，不会丢。
@@ -140,16 +174,26 @@ def diff_config(raw_config, config, notes=None):
         rows = []
         for key, raw_value in raw_config.items():
             got = getattr(config, key, _MISSING)
-            if got is not _MISSING and got == raw_value:
-                continue
-            rows.append((key, repr(raw_value),
-                         '<AttributeError>' if got is _MISSING else repr(got),
+            if got is _MISSING:
+                mark, right = '-', '<取不到>'
+            else:
+                mark = '' if got == raw_value else '~'
+                right = _repr_safe(got, width)
+            rows.append((mark, key, _clip(repr(raw_value), width), right,
+                         notes.get(key, '')))
+        for key in sorted(set(config.to_dict()) - set(raw_config)):
+            rows.append(('+', key, '—', _repr_safe(getattr(config, key, None), width),
                          notes.get(key, '')))
     finally:
         transformers.logging.set_verbosity(verbosity)
 
-    show(rows, header=['key', 'config.json', 'getattr(config, key)', '说明'],
-         title=f'{len(raw_config)} 个顶层键，不一致的 {len(rows)} 个')
+    _CLS = {'': 'same', '~': 'chg', '-': 'gone', '+': 'new'}
+    n_diff = sum(1 for r in rows if r[0])
+    show(rows, header=['', 'key', 'config.json', 'getattr(config, key)', '说明'],
+         align='c',
+         title=f'两份配置的键全部列出，共 {len(rows)} 行，不一致的 {n_diff} 行\n'
+               f'~ 值不同    - json 有而 config 对象取不到    + config 对象独有',
+         row_class=lambda r: _CLS[r[0]])
     return rows
 
 
