@@ -36,14 +36,7 @@ mask、GQA attention、SwiGLU，拼出完整的 28 层，最后跑通端到端�
 ```bash
 python -m venv .venv && . .venv/bin/activate    # 实测 Python 3.14.6
 pip install -r requirements.txt
-
-# 权重不入库，自己下（约 1.2 GB）
-hf download Qwen/Qwen3-0.6B-Base --local-dir models/Qwen3-0.6B-Base
-
-jupyter lab
 ```
-
-从 `notebooks/01_inspect_architecture.ipynb` 开始，按顺序执行。
 
 两本 notebook 全程在 CPU 上跑 float32，用不到 GPU。而 linux 上 `pip install torch` 默认拉
 CUDA 版，附带的 nvidia wheel 装完占 2.66 GiB。不需要 GPU 的话先装 CPU 版，能省下这些：
@@ -54,6 +47,17 @@ pip install -r requirements.txt          # torch 已满足，不会被顶掉
 ```
 
 实测这条路径装出来的环境 1.3 GB（默认 CUDA 版 5.1 GB），整本跑完 40 项验证同样全过。
+
+## 下权重
+
+权重不入库，自己下到 `models/Qwen3-0.6B-Base/`，约 1.2 GB。`hf` 命令随
+`huggingface_hub` 一起装好了：
+
+```bash
+hf download Qwen/Qwen3-0.6B-Base --local-dir models/Qwen3-0.6B-Base
+```
+
+从 `notebooks/01_inspect_architecture.ipynb` 开始，按顺序执行。
 
 ## 目录
 
