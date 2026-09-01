@@ -1,4 +1,4 @@
-# qwen3-lab
+# qwen3-minilab
 
 用 Jupyter notebook 逐步解剖 Qwen3-0.6B：每一步计算都自己重写一遍，再和官方实现逐个张量比对。
 
