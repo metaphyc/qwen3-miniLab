@@ -65,6 +65,7 @@ hf download Qwen/Qwen3-0.6B-Base --local-dir models/Qwen3-0.6B-Base
 notebooks/qwen_kit.py    共用工具：权重与中间状态目录、look/check/summary、HTML 表格
 notebooks/0*.ipynb       实验本体，按编号顺序读
 assets/                  结构图（PNG 用于展示，tex/ 下是 TikZ 源码）
+tools/nb_clean.py        git clean 过滤器：重跑 notebook 不产生假改动
 models/                  权重存放处，不入库
 ```
 
@@ -73,19 +74,27 @@ models/                  权重存放处，不入库
 
 ## 一起改
 
-notebook 的 `.ipynb` 是 JSON，输出占了这本文件的三分之二。两个人各跑一遍同一本，
-`execution_count` 和浮点尾数全变，`git diff` 就是几十行假改动，冲突也没法手工解。
+notebook 的 `.ipynb` 是 JSON，输出占了这本文件的三分之二。什么都不配的话，光是把
+notebook 从头跑一遍、一个字都没改，git 也会说它改了 —— 因为每个 cell 的
+metadata 里存着四个纳秒级时间戳，每跑一遍全变。两个人各跑一遍，`git diff`
+就是几千行假改动，冲突也没法手工解。
 
-`nbdime` 让 git 按 cell 比较而不是按 JSON 行。两边都装一次：
+两边都要各自配一次（`.git/config` 不入库，clone 完必须重跑）：
 
 ```bash
 pip install -r requirements-dev.txt
-nbdime config-git --enable                     # 写进 .git/config，clone 后要各自跑
+nbdime config-git --enable                                    # diff/merge 按 cell 比较
 git config diff.jupyternotebook.command 'git-nbdiffdriver diff --ignore-details'
+git config filter.nbclean.clean 'python3 tools/nb_clean.py'   # 时间戳不入库
 ```
 
-最后那行让纯重跑（只有 `execution_count` 变化）在 `git diff` 里显示为无改动，
-真改了 cell 源码才会列出来，精确到哪个 cell 的哪一行。
+- **nbdime** 让 `git diff` 按 cell 显示，精确到哪个 cell 的哪一行；`--ignore-details`
+  让只有 `execution_count` 变化的重跑显示为无改动。
+- **[`tools/nb_clean.py`](tools/nb_clean.py)** 在写入 git 前抹掉每跑一次就变、又不带信息的字段：
+  cell 的 execution 时间戳、进度条 widget 的随机 `model_id`，并把被刷新时机切碎的
+  stdout 归并成一段。**输出本身一律保留** —— 那是这个项目的证据。
+
+配完之后整本重跑一遍，`git status` 应该是干净的：改了才算改。
 
 工具只能压掉噪音，压不掉冲突本身。**同一本 notebook 不要两个人同时改** ——
 一人一本，或者动手前说一声。
