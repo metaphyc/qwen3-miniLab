@@ -45,6 +45,16 @@ jupyter lab
 
 从 `notebooks/01_inspect_architecture.ipynb` 开始，按顺序执行。
 
+两本 notebook 全程在 CPU 上跑 float32，用不到 GPU。而 linux 上 `pip install torch` 默认拉
+CUDA 版，附带的 nvidia wheel 装完占 2.66 GiB。不需要 GPU 的话先装 CPU 版，能省下这些：
+
+```bash
+pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements.txt          # torch 已满足，不会被顶掉
+```
+
+实测这条路径装出来的环境 1.3 GB（默认 CUDA 版 5.1 GB），整本跑完 40 项验证同样全过。
+
 ## 目录
 
 ```
