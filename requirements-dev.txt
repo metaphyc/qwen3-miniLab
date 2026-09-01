@@ -1,0 +1,5 @@
+-r requirements.txt
+
+# 协作用：让 git 按 cell 比较 notebook，而不是按 JSON 行。
+# 装完还要跑一次 nbdime config-git --enable，才会写进 .git/config。
+nbdime==4.0.4

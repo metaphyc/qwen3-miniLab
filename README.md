@@ -70,3 +70,22 @@ models/                  权重存放处，不入库
 
 `qwen_kit` 的作用是把重复的脚手架收走 —— 用 hook 抓下官方每一层的中间状态，
 建成 `qwen.L[i]` 和 `W.L[i]` 两份可以直接点出来的目录，notebook 里只留下真正的计算和比对。
+
+## 一起改
+
+notebook 的 `.ipynb` 是 JSON，输出占了这本文件的三分之二。两个人各跑一遍同一本，
+`execution_count` 和浮点尾数全变，`git diff` 就是几十行假改动，冲突也没法手工解。
+
+`nbdime` 让 git 按 cell 比较而不是按 JSON 行。两边都装一次：
+
+```bash
+pip install -r requirements-dev.txt
+nbdime config-git --enable                     # 写进 .git/config，clone 后要各自跑
+git config diff.jupyternotebook.command 'git-nbdiffdriver diff --ignore-details'
+```
+
+最后那行让纯重跑（只有 `execution_count` 变化）在 `git diff` 里显示为无改动，
+真改了 cell 源码才会列出来，精确到哪个 cell 的哪一行。
+
+工具只能压掉噪音，压不掉冲突本身。**同一本 notebook 不要两个人同时改** ——
+一人一本，或者动手前说一声。

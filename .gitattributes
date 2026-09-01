@@ -1,0 +1,4 @@
+# notebook 的 diff/merge 交给 nbdime，按 cell 比较而不是按 JSON 行。
+# 两边都要跑一次：pip install -r requirements.txt && nbdime config-git --enable
+*.ipynb diff=jupyternotebook
+*.ipynb merge=jupyternotebook
