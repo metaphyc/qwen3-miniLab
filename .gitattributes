@@ -2,3 +2,6 @@
 # 两边都要跑一次：pip install -r requirements.txt && nbdime config-git --enable
 *.ipynb diff=jupyternotebook
 *.ipynb merge=jupyternotebook
+
+# 每跑一次就变的时间戳不入库，否则整本 notebook 永远显示"已修改"。
+*.ipynb filter=nbclean

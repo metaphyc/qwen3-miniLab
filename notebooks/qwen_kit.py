@@ -26,6 +26,10 @@ import transformers
 from IPython.display import HTML, display
 from transformers.models.qwen3 import modeling_qwen3 as Q3
 
+# 关掉加载权重的进度条。它是个 ipywidget，model_id 每次加载都是新的随机 UUID，
+# 存进 .ipynb 就让整本文件每跑一次都变脏，而条子本身跑完不留任何信息。
+transformers.utils.logging.disable_progress_bar()
+
 
 # ── 路径 ──────────────────────────────────────────────────────────────
 
