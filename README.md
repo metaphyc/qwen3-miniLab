@@ -74,10 +74,11 @@ models/                  权重存放处，不入库
 
 ## 一起改
 
-notebook 的 `.ipynb` 是 JSON，输出占了这本文件的三分之二。什么都不配的话，光是把
-notebook 从头跑一遍、一个字都没改，git 也会说它改了 —— 因为每个 cell 的
-metadata 里存着四个纳秒级时间戳，每跑一遍全变。两个人各跑一遍，`git diff`
-就是几千行假改动，冲突也没法手工解。
+notebook 的 `.ipynb` 是 JSON，输出占了这本文件的三分之二。什么都不配的话，整本从头
+跑一遍、一个字都没改，git 也会说它改了 —— 四个来源：每个 cell 的 execution 时间戳
+（纳秒级，每次全变）、加载进度条 widget 的随机 `model_id`、在开着的 kernel 里重跑时
+从上次末尾接着走的 `execution_count`、以及被刷新时机切碎的 stdout。两个人各跑一遍，
+`git diff` 就是几千行假改动，冲突也没法手工解。
 
 两边都要各自配一次（`.git/config` 不入库，clone 完必须重跑）：
 
@@ -85,16 +86,23 @@ metadata 里存着四个纳秒级时间戳，每跑一遍全变。两个人各�
 pip install -r requirements-dev.txt
 nbdime config-git --enable                                    # diff/merge 按 cell 比较
 git config diff.jupyternotebook.command 'git-nbdiffdriver diff --ignore-details'
-git config filter.nbclean.clean 'python3 tools/nb_clean.py'   # 时间戳不入库
+git config filter.nbclean.clean 'python3 tools/nb_clean.py'   # 上面四样不入库
+git config alias.tidy '!python3 tools/nb_clean.py -i notebooks/*.ipynb'
 ```
 
-- **nbdime** 让 `git diff` 按 cell 显示，精确到哪个 cell 的哪一行；`--ignore-details`
-  让只有 `execution_count` 变化的重跑显示为无改动。
-- **[`tools/nb_clean.py`](tools/nb_clean.py)** 在写入 git 前抹掉每跑一次就变、又不带信息的字段：
-  cell 的 execution 时间戳、进度条 widget 的随机 `model_id`，并把被刷新时机切碎的
-  stdout 归并成一段。**输出本身一律保留** —— 那是这个项目的证据。
+- **nbdime** 让 `git diff` 按 cell 显示，精确到哪个 cell 的哪一行。
+- **[`tools/nb_clean.py`](tools/nb_clean.py)** 抹掉那四样。`execution_count` 是整体减掉偏移量
+  让编号回到 1 开头，只抹掉「这是第几个 kernel session」—— 跳号和乱序仍然算改动，
+  因为那确实是改动。**输出本身一律保留**，那是这个项目的证据。
 
-配完之后整本重跑一遍，`git status` 应该是干净的：改了才算改。
+跑完 notebook，VS Code 的「已修改」角标还是会亮，`git diff` 却是空的。这不是没配好：
+git 判断工作区有没有变，是拿文件大小跟 index 里记的比，大小对不上就直接算改了，
+根本不看内容 —— 而过滤器只管入库的那一份，改不了磁盘上这一份的大小。要角标灭掉，
+把工作区这份也清一遍：
+
+```bash
+git tidy          # 提交前跑一下，文件回到和入库完全一样的字节
+```
 
 工具只能压掉噪音，压不掉冲突本身。**同一本 notebook 不要两个人同时改** ——
 一人一本，或者动手前说一声。
