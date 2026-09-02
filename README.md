@@ -67,24 +67,6 @@ hf download Qwen/Qwen3-0.6B-Base --local-dir models/Qwen3-0.6B-Base
 
 下载完成后，从 `notebooks/01_inspect_architecture.ipynb` 开始，按顺序运行即可。
 
-## 目录
-
-```text
-notebooks/qwen_kit.py    共用工具：权重与中间状态目录、look/check/summary、HTML 表格
-
-notebooks/0*.ipynb       实验本体，按编号顺序阅读
-
-assets/                   结构图（PNG 用于展示，tex/ 下保存 TikZ 源码）
-
-tools/                    协作脚本：setup-git.sh 配置一次，nb_clean.py 用于清理 Notebook
-
-models/                   模型权重存放处，不入库
-```
-
-`qwen_kit` 主要是把重复的准备工作集中到一起：它会用 hook 把官方模型每一层的中间状态抓下来，整理成可以直接访问的 `qwen.L[i]` 和 `W.L[i]` 两套目录。
-
-这样 Notebook 里就不用重复写这些准备代码，可以把篇幅留给真正的计算和比对。
-
 ## 一起改
 
 **第一次 clone 后运行一次：**
@@ -110,10 +92,6 @@ Notebook 跑过一遍以后，即使你一个字都没改，文件里的时间�
 
 真正改过的内容不会被删掉——改了就是改了，仍然会正常显示。
 
-就算忘了运行 `git tidy`，也不用担心把这些垃圾提交进仓库：`tools/setup-git.sh` 配置的过滤器会负责拦住它们。只是 VS Code 里的修改标记可能会一直亮着。
-
 最后还有一条：
 
 **同一本 Notebook 不要两个人同时修改。**
-
-工具可以帮我们处理运行产生的噪音，但处理不了真正的代码冲突。最好一人负责一本，或者开始修改前先说一声。
